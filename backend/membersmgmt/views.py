@@ -1,9 +1,11 @@
 import csv, json
 from django.conf import settings
+import requests
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status, views, generics
 from django.middleware.csrf import get_token
+from rest_framework.permissions import AllowAny
 
 from twilio.twiml.messaging_response import MessagingResponse
 
@@ -12,7 +14,7 @@ from django.http import HttpResponse, JsonResponse
 from django.views import View
 from django.core.mail import send_mail
 from django.views.decorators.csrf import csrf_exempt
-from django.utils.decorators import method_decorator
+from django.utils.decorators import method_decorator, api_view, permission_classes
 
 from .models import Member, AdminProfile
 from .serializers import MemberSerializer, AdminProfileSerializer
@@ -186,3 +188,29 @@ def send_sms_with_twilio(to_number, message_body):
 def csrf_token(request):
     csrf_token = get_token(request)
     return JsonResponse({'csrfToken': csrf_token})
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def register_member(request):
+    # Validate reCAPTCHA token
+    recaptcha_token = request.data.get('recaptchaValue')
+    if not recaptcha_token:
+        return Response({'error': 'reCAPTCHA token is missing'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Make a request to reCAPTCHA API to verify the token
+    # Use your reCAPTCHA secret key for authentication
+    # Check reCAPTCHA documentation for details: https://developers.google.com/recaptcha/docs/verify
+    recaptcha_url = 'https://www.google.com/recaptcha/api/siteverify'
+    recaptcha_secret_key = settings.RECAPTCHA_SECRET_KEY
+    recaptcha_response = requests.post(recaptcha_url, data={
+        'secret': recaptcha_secret_key,
+        'response': recaptcha_token,
+    })
+
+    if not recaptcha_response.json().get('success'):
+        return Response({'error': 'reCAPTCHA verification failed'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Continue processing the form data and register the member
+    # ...
+
+    return Response({'success': 'Member registered successfully'}, status=status.HTTP_201_CREATED)
